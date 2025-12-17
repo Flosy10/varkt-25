@@ -6,23 +6,20 @@ import csv
 import os
 from datetime import datetime
 
-# Настройки орбиты
-TARGET_ALTITUDE = 150000  # 150 км
+
+TARGET_ALTITUDE = 150000
 TURN_START_ALT = 1000
 TURN_END_ALT = 45000
 
-# Глобальные переменные
 conn = None
 vessel = None
 ap = None
 
 
 def setup_staging():
-    """Инициализация автопилота"""
     global conn, vessel, ap
     print("Инициализация автопилота...")
 
-    # Подключение к KSP
     try:
         conn = krpc.connect()
         vessel = conn.space_center.active_vessel
@@ -42,7 +39,6 @@ def setup_staging():
 
 
 def manage_max_q():
-    """Управление тягой для прохождения зоны максимального аэродинамического давления"""
     if vessel is None:
         return
     alt = vessel.flight().mean_altitude
@@ -62,7 +58,6 @@ class RocketStager:
         self.stage_names = ["Твердотопливные ускорители", "Вторая ступень", "Третья ступень"]
 
     def get_current_stage_resources(self):
-        """Правильное получение ресурсов текущей активной ступени"""
         try:
             all_resources = self.vessel.resources
             current_stage = self.vessel.control.current_stage
@@ -81,7 +76,6 @@ class RocketStager:
             return 0, 0, 0
 
     def check_stage_1_separation(self):
-        """Проверка отделения первой ступени (твердотопливные ускорители)"""
         if self.stage_separated[0]:
             return False
 
@@ -98,7 +92,6 @@ class RocketStager:
         return False
 
     def check_stage_2_separation(self):
-        """Проверка отделения второй ступени"""
         if self.stage_separated[1] or self.current_stage != 2:
             return False
 
@@ -117,8 +110,7 @@ class RocketStager:
         return False
 
     def separate_current_stage(self):
-        """Отделение текущей ступени"""
-        print(f"Активация разделения ступени {self.vessel.control.current_stage}...")
+        print(f"Активация разделения ступени {self.vessel.control.current_stage}")
         self.vessel.control.activate_next_stage()
         time.sleep(3)
 
@@ -126,7 +118,6 @@ class RocketStager:
         print(f"Новая текущая ступень: {new_stage}")
 
     def manage_all_stages(self):
-        """Управление всеми ступенями"""
         if self.current_stage == 1:
             return self.check_stage_1_separation()
         elif self.current_stage == 2:
@@ -137,7 +128,6 @@ class RocketStager:
 
 
 def check_circularization():
-    """Проверяет необходимость циркуляции орбиты"""
     if vessel is None:
         return False
     apoapsis = vessel.orbit.apoapsis_altitude
@@ -149,23 +139,19 @@ def check_circularization():
 
 
 def circularize_orbit():
-    """Циркуляция орбиты в апогее"""
     if vessel is None or ap is None:
         return
 
-    print("Начинаем циркуляцию орбиты...")
 
     ap.target_pitch_and_heading(0, 90)
     time.sleep(2)
 
-    print("Ожидание апогея...")
     while vessel.orbit.time_to_apoapsis > 60:
         time.sleep(1)
 
     while vessel.orbit.time_to_apoapsis > 10:
         time.sleep(0.1)
 
-    print("Выполнение маневра циркуляции...")
     vessel.control.throttle = 1.0
 
     start_time = time.time()
@@ -185,14 +171,11 @@ def circularize_orbit():
         time.sleep(0.5)
 
     vessel.control.throttle = 0.0
-    print("Циркуляция завершена!")
 
     apoapsis = vessel.orbit.apoapsis_altitude
     periapsis = vessel.orbit.periapsis_altitude
     print(f"Итоговая орбита: Апоцентр {apoapsis / 1000:.1f}км, Перицентр {periapsis / 1000:.1f}км")
 
-
-# ===== СИСТЕМА СБОРА ДАННЫХ В ФАЙЛЫ =====
 
 class DataLogger:
     def __init__(self):
@@ -201,11 +184,9 @@ class DataLogger:
         if not os.path.exists(self.data_dir):
             os.makedirs(self.data_dir)
 
-        # Создаем файлы для записи данных
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         self.data_file = os.path.join(self.data_dir, f"flight_data_{timestamp}.csv")
 
-        # Заголовки CSV файла
         with open(self.data_file, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(['time', 'velocity', 'mass', 'altitude', 'thrust', 'stage'])
@@ -213,7 +194,6 @@ class DataLogger:
         print(f"Файл для записи данных создан: {self.data_file}")
 
     def save_data(self, vessel):
-        """Сохранение данных в CSV файл"""
         if vessel is None:
             return
 
@@ -224,7 +204,6 @@ class DataLogger:
         current_thrust = vessel.available_thrust
         current_stage = vessel.control.current_stage
 
-        # Записываем данные в CSV
         with open(self.data_file, 'a', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow([
@@ -238,33 +217,29 @@ class DataLogger:
 
 
 def launch_with_data_logging():
-    """Основная функция запуска с записью данных в файл"""
     if vessel is None:
         print("Ошибка: корабль не определен")
         return
 
-    print('Запуск!')
     vessel.control.activate_next_stage()
 
-    # Создаем логгер данных
+
     data_logger = DataLogger()
 
-    # Ожидание стабилизации
+
     while vessel.flight().surface_altitude < 10:
         data_logger.save_data(vessel)
         time.sleep(0.1)
-    print('Взлет!')
 
     stager = RocketStager(vessel)
 
-    # Вертикальный подъем до начала разворота
     while vessel.flight().mean_altitude < TURN_START_ALT:
         manage_max_q()
         data_logger.save_data(vessel)
         time.sleep(0.1)
 
-    # Гравитационный разворот
-    print('Гравитационный разворот')
+
+
     while vessel.flight().mean_altitude < TURN_END_ALT:
         alt = vessel.flight().mean_altitude
         frac = (alt - TURN_START_ALT) / (TURN_END_ALT - TURN_START_ALT)
@@ -276,28 +251,25 @@ def launch_with_data_logging():
         data_logger.save_data(vessel)
         time.sleep(0.1)
 
-    # Вывод на орбиту
-    print('Вывод на орбиту')
     ap.target_pitch_and_heading(0, 90)
 
-    # Основной цикл вывода
+
     while vessel.orbit.apoapsis_altitude < TARGET_ALTITUDE:
         stage_changed = stager.manage_all_stages()
 
         data_logger.save_data(vessel)
 
-        # Если все ступени отработали
+
         if stager.current_stage == 3 and stager.stage_separated[2]:
             print("Топливо полностью израсходовано до достижения орбиты")
             break
 
         time.sleep(0.1)
 
-    # Завершение активного вывода
+
     vessel.control.throttle = 0.0
     print(f'Достигнута высота апоцентра: {vessel.orbit.apoapsis_altitude / 1000:.1f} км')
 
-    # Проверяем и выполняем циркуляцию если нужно
     if check_circularization():
         circularize_orbit()
     else:
@@ -305,21 +277,18 @@ def launch_with_data_logging():
         periapsis = vessel.orbit.periapsis_altitude
         print(f"Орбита: Апоцентр {apoapsis / 1000:.1f}км, Перицентр {periapsis / 1000:.1f}км")
 
-    # Сохраняем финальные данные
+
     data_logger.save_data(vessel)
     print(f"Данные полета сохранены в файл: {data_logger.data_file}")
 
-    # Возвращаем путь к файлу с данными для построения графиков
+
     return data_logger.data_file
 
 
-# ===== ФУНКЦИИ ДЛЯ ПОСТРОЕНИЯ ГРАФИКОВ ИЗ ФАЙЛОВ =====
 
 def plot_from_data_file(data_file_path):
-    """Построение графиков из файла данных"""
     print(f"Строим графики из файла: {os.path.basename(data_file_path)}")
 
-    # Читаем данные из файла
     times = []
     velocities = []
     masses = []
@@ -328,7 +297,7 @@ def plot_from_data_file(data_file_path):
 
     with open(data_file_path, 'r', encoding='utf-8') as f:
         reader = csv.reader(f)
-        next(reader)  # Пропускаем заголовок
+        next(reader)  
 
         for row in reader:
             if len(row) == 6:
@@ -342,14 +311,13 @@ def plot_from_data_file(data_file_path):
         print("Нет данных для построения графиков!")
         return
 
-    # Создаем папку для графиков
     plots_dir = "flight_plots"
     if not os.path.exists(plots_dir):
         os.makedirs(plots_dir)
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
-    # График 1: Скорость и высота
+
     plt.figure(figsize=(12, 8))
 
     plt.subplot(2, 1, 1)
@@ -367,7 +335,7 @@ def plot_from_data_file(data_file_path):
     ax2.legend(loc='upper right')
     plt.title('Общая скорость и Высота')
 
-    # График 2: Масса и тяга
+
     plt.subplot(2, 1, 2)
     plt.plot(times, masses, 'g-', linewidth=2, label='Масса')
     plt.xlabel('Время (с)')
@@ -385,21 +353,17 @@ def plot_from_data_file(data_file_path):
 
     plt.tight_layout()
 
-    # Сохраняем комбинированный график
     combined_filename = os.path.join(plots_dir, f"combined_plot_{timestamp}.png")
     plt.savefig(combined_filename, dpi=300, bbox_inches='tight')
     print(f"Комбинированный график сохранен: {combined_filename}")
 
-    # Отдельные графики
+
     plot_individual_graphs(times, velocities, masses, altitudes, thrusts, plots_dir, timestamp)
 
     plt.show()
 
 
 def plot_individual_graphs(times, velocities, masses, altitudes, thrusts, plots_dir, timestamp):
-    """Построение отдельных графиков"""
-
-    # График общей скорости
     plt.figure(figsize=(10, 6))
     plt.plot(times, velocities, 'b-', linewidth=2)
     plt.xlabel('Время (с)')
@@ -410,7 +374,6 @@ def plot_individual_graphs(times, velocities, masses, altitudes, thrusts, plots_
     plt.savefig(os.path.join(plots_dir, f"velocity_{timestamp}.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
-    # График высоты
     plt.figure(figsize=(10, 6))
     plt.plot(times, [h / 1000 for h in altitudes], 'r-', linewidth=2)
     plt.xlabel('Время (с)')
@@ -421,7 +384,6 @@ def plot_individual_graphs(times, velocities, masses, altitudes, thrusts, plots_
     plt.savefig(os.path.join(plots_dir, f"altitude_{timestamp}.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
-    # График массы
     plt.figure(figsize=(10, 6))
     plt.plot(times, masses, 'g-', linewidth=2)
     plt.xlabel('Время (с)')
@@ -432,7 +394,6 @@ def plot_individual_graphs(times, velocities, masses, altitudes, thrusts, plots_
     plt.savefig(os.path.join(plots_dir, f"mass_{timestamp}.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
-    # График тяги
     plt.figure(figsize=(10, 6))
     plt.plot(times, [t / 1000 for t in thrusts], 'orange', linewidth=2)
     plt.xlabel('Время (с)')
@@ -446,20 +407,16 @@ def plot_individual_graphs(times, velocities, masses, altitudes, thrusts, plots_
     print("Отдельные графики сохранены")
 
 
-# Основная программа
 if __name__ == '__main__':
     try:
 
 
-        # Инициализация
         if not setup_staging():
             print("Не удалось инициализировать автопилот")
             exit(1)
 
-        # Запуск с записью данных
         data_file = launch_with_data_logging()
 
-        # Завершение
         if ap and hasattr(ap, 'engaged'):
             if ap.engaged:
                 ap.disengage()
@@ -469,20 +426,17 @@ if __name__ == '__main__':
         if vessel:
             vessel.control.sas = True
 
-        print("Миссия завершена успешно!")
 
-        #ПОСТРОЕНИЕ ГРАФИКОВ ПОСЛЕ ПОЛЕТА
 
         plot_from_data_file(data_file)
-        print("Графики успешно построены и сохранены!")
 
     except Exception as e:
         print(f"Ошибка во время выполнения: {e}")
-        # Безопасное завершение
         try:
             if vessel:
                 vessel.control.throttle = 0.0
             if ap:
                 ap.disengage()
         except:
+
             pass
